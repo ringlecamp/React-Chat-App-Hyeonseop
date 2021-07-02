@@ -1,9 +1,20 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
+import {useHistory, Link} from 'react-router-dom';
 import InputText from '../components/InputText';
 import InputSelect from '../components/InputSelect';
 import InputCheckbox from '../components/InputCheckbox';
 
+import {useDispatch, useSelector} from 'react-redux';
+import {setUserProfile} from '../reducers/user';
+
+import {db, firebase, firebaseApp} from '../firebase';
+
 function Signup() {
+  const dispatch = useDispatch();
+  const history = useHistory();
+  const userProfile = useSelector((state) => state.user.userProfile);
+
+  // States for form
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -15,6 +26,13 @@ function Signup() {
     {value: "ads", text: "광고"},
     {value: "etc", text: "이외"},
   ]
+
+  useState(() => {
+    if(userProfile) {
+      alert('로그아웃 후에 시도해주세요.');
+      history.push('/chat/list');
+    }
+  }, [])
   
   const isValid = () => {
     if(email.trim().length === 0) {
@@ -40,24 +58,41 @@ function Signup() {
     return true;
   }
 
+  const signup = async () => {
+    if(! isValid()) return;
+
+    try {
+      const userCred = await firebaseApp.auth().createUserWithEmailAndPassword(email, password);
+      console.log('@@@');
+      const uid = userCred.user.uid;
+      const payload = {
+        email: email,
+        name: name,
+        signupPath: signupPath,
+        uid: uid,
+        created: firebase.firestore.Timestamp.now(),
+        chatroomUids: []
+      };
+      console.log(payload);
+      await db.collection('users').doc(uid).set(payload);
+      alert('가입되었습니다!');
+
+      dispatch(setUserProfile(payload));
+      history.push('/chat/list');
+    } catch(e) {
+      alert('signup error');
+    }
+  }
+
   const onSubmit = (e) => {
     e.preventDefault();
-    if(! isValid()) return;
-    const payload = {
-      email: email,
-      password: password,
-      name: name,
-      isAgree: isAgree,
-      signupPath: signupPath 
-    };
-    console.log(payload);
-    alert('가입 성공!');
+    signup();
   }
 
   return (
     <div className="App">
       <div className="p-2">
-        <h1>회원가입</h1>
+        <h3>회원가입</h3>
         <form onSubmit={onSubmit}>
           <div className="mb-3">
             <InputText 
@@ -111,6 +146,8 @@ function Signup() {
           </button>
         </form>
       </div>
+      <br />
+      <Link to="/users/login">로그인 하러가기</Link>
     </div>
   );
 }

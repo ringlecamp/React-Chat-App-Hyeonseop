@@ -5,20 +5,26 @@ import {
   Switch
 } from 'react-router-dom';
 
+import Home from './pages/Home';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import ChatList from './pages/ChatList';
 import ChatRoom from './pages/ChatRoom';
+import EmptyPage from './pages/EmptyPage';
+import Header from './components/Header';
 
 class Routes extends React.Component {
   render() {
     return (
       <Router>
+        <Header />
         <Switch>
+          <Route exact path="/" component={Home} />
           <Route exact path="/users/login" component={Login} />
           <Route exact path="/users/signup" component={Signup} />
           <Route exact path="/chat/list" component={ChatList} />
-          <Route exact path="/chat/room/:roodId" component={ChatRoom} />
+          <Route exact path="/chat/room/:roomUid" component={ChatRoom} />
+          <Route component={EmptyPage} />
         </Switch>
       </Router>  
     )
