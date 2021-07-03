@@ -1,6 +1,6 @@
 import React from "react";
 
-function InputText({label, type, value, onChange, placeholder, maxlength}) {
+function InputText({label, type, value, onChange, placeholder, maxLength}) {
     return (
         <>
             {label ? <label className="form-label">{label}</label> : ''}
@@ -10,7 +10,7 @@ function InputText({label, type, value, onChange, placeholder, maxlength}) {
                 onChange={onChange}
                 placeholder={placeholder}
                 className="form-control"
-                maxlength={maxlength}
+                maxLength={maxLength}
             />
         </>
     );

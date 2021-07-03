@@ -1,3 +1,6 @@
+* {
+  box-sizing:border-box;
+}
 a {
   color: #9e25d9;
   text-decoration: none;
