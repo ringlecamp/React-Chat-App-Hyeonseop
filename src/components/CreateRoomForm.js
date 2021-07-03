@@ -3,7 +3,6 @@ import InputText from './InputText';
 import InputCheckbox from './InputCheckbox';
 import InputSelect from './InputSelect';
 import styled from 'styled-components';
-import {useHistory} from 'react-router-dom';
 
 // called by
 //    ChatList.js
@@ -13,8 +12,6 @@ const CreateRoomForm = ({
   setState,
   createChatroom
 }) => {
-
-  const history = useHistory();
 
   const isValid = () => {
     if(state.title.trim().length === 0) {
@@ -66,7 +63,9 @@ const CreateRoomForm = ({
   }
 
   const onChangeNum = (e) => {
-
+    const cp = {...state};
+    cp.maxNum = parseInt(e.target.value);
+    setState(cp);
   }
 
   return (
@@ -80,11 +79,21 @@ const CreateRoomForm = ({
         maxLength="15"
       />
       <br />
-      {/* <InputSelect 
-        label= "방 인원"
-        value={state.num}
+      <InputSelect 
+        label= "방 최대 인원"
+        value={state.maxNum}
         onChange={onChangeNum}
-      /> */}
+        options={[
+          {value: 1, text: "1 명"},
+          {value: 2, text: "2 명"},
+          {value: 3, text: "3 명"},
+          {value: 4, text: "4 명"},
+          {value: 5, text: "5 명"},
+          {value: 6, text: "6 명"},
+        ]}
+      />
+      <br />
+
       <InputCheckbox 
         label=" 비밀번호 설정하기"
         onClick={onClickPwCheckbox}

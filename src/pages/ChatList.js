@@ -6,9 +6,6 @@ import { setUserProfile } from '../reducers/user';
 
 import styled from 'styled-components';
 import { v4 as uuidv4 } from 'uuid';
-import InputText from '../components/InputText';
-import PageTitle from '../components/PageTitle';
-import InputCheckbox from '../components/InputCheckbox';
 import CreateRoomForm from '../components/CreateRoomForm';
 
 const ChatList = () => {
@@ -23,11 +20,11 @@ const ChatList = () => {
     title: '',
     isPrivate: false,
     pw: '',
-    num: 4
+    maxNum: 4
   });
 
   // 내가 참여한방 보기(flase) or 모든방보기 (true)
-  const [isViewAllRoom, setIsViewAllRoom] = useState(false);
+  const [isViewAllRoom, setIsViewAllRoom] = useState(true);
 
   // 로그아웃 상태일 때
   useEffect(() => {
@@ -37,6 +34,10 @@ const ChatList = () => {
     }
     getChatroomList();
   }, [])
+
+  useEffect(() => {
+    console.log("inputState",inputState);
+  }, [inputState]);
 
 
   /* functions interact with db */
@@ -51,12 +52,43 @@ const ChatList = () => {
     setChatroomList(chatroomList);
   }
 
-  const enterChatroom = async (roomUid) => {
+  const enterChatroom = async (roomUid, shoudValidCheck=true) => {
     try {
-      // TODO: 병렬처리하기 (Promise.All)
+
+      // 이미 들어가 방이면 그냥 return.
+      if(userProfile.chatroomUids.includes(roomUid)) {
+        history.push('/chat/room/' + roomUid);
+        return;
+      }
 
       // chatroom 정보 가져오기
-      const chatroom = await db.collection('chatrooms').doc(roomUid).get();
+      const chatroomDoc = await db.collection('chatrooms').doc(roomUid).get();
+      const chatroom = chatroomDoc.data();
+
+      // 방을 만들고 난 직후에는 valid check를 안한다.
+      if(shoudValidCheck) {
+        // 방에 참가할지 물어보기
+        if(!window.confirm('방에 참가하시겠습니까?'))
+          return;
+
+        // 비번방이면 비밀번호 치게하기.
+        if(chatroom.isPrivate) {
+          let pw = prompt('방 비밀번호를 입력하세요.');
+          if(pw !== chatroom.pw) {
+            alert('비밀번호가 틀렸습니다.');
+            console.log(pw, chatroom.pw);
+            return;
+          }
+        }
+      }
+
+      // 방이 꽉찼는지 검사
+      if(chatroom.curNum >= chatroom.maxNum) {
+        alert('방 인원이 가득 찼습니다.');
+        return;
+      }
+      
+      /* TODO: 병렬처리하기 (Promise.All) */
 
       // chatroom에 participant 추가
       await db.collection('chatrooms').doc(roomUid).collection('participants').doc(userProfile.uid).set({
@@ -70,9 +102,16 @@ const ChatList = () => {
       await db.collection('users').doc(userProfile.uid).update(
         payload
       );
+      
+      //chatroom curNum 필드 1 늘리기
+      await db.collection('chatrooms').doc(roomUid).update({
+        ...chatroom,
+        curNum: chatroom.curNum + 1
+      });
 
       setChatroomList([...chatroomList, chatroom]);
 
+      // userProfile에 들어간 state 넣기 (Redux)
       const cp = {...userProfile};
       cp.chatroomUids.push(roomUid);
       dispatch(setUserProfile(cp));
@@ -90,14 +129,15 @@ const ChatList = () => {
       //chatrooms 추가
       await db.collection('chatrooms').doc(chatroomUid).set({
         title: title, 
+        curNum: 0,
+        maxNum: inputState.maxNum,
         isPrivate: inputState.isPrivate,
-        password: inputState.pw,
+        pw: inputState.pw,
         created: firebase.firestore.Timestamp.now(),
         uid: chatroomUid
       });
       console.log('chatroom created!');
-      enterChatroom(chatroomUid);
-      
+      enterChatroom(chatroomUid, false);
     } catch(e) {
       alert('Error to create chatroom');
       console.error("Error to create chatroom: ", e);
@@ -108,9 +148,9 @@ const ChatList = () => {
   const renderChatroomList = chatroomList
   .filter((v) => isViewAllRoom || userProfile.chatroomUids.includes(v.uid))
   .map((v) => (
-    <ChatroomButton onClick={()=>history.push('/chat/room/' + v.uid)} key={v.uid}>
+    <ChatroomButton onClick={()=>enterChatroom(v.uid)} key={v.uid}>
       <Title>{v.title}</Title>
-      <div>(2 / 5)</div>
+      <div>({v.curNum} / {v.maxNum})</div>
       [입장하기]
       {v.isPrivate && <PrivateIcon><i className="fas fa-lock"></i></PrivateIcon>}
     </ChatroomButton>
@@ -128,7 +168,6 @@ const ChatList = () => {
               state={inputState}
               setState={setInputState}
               createChatroom={createChatroom}
-              enterChatroom={enterChatroom}
             />
           }
 
