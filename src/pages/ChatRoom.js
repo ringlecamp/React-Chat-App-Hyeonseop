@@ -21,6 +21,7 @@ function ChatRoom() {
 
     const [newChat, setNewChat] = useState(null);
     const [modifiedChat, setModifiedChat] = useState(null);
+    const [removedChat, setRemovedChat] = useState(null);
 
     
 
@@ -33,7 +34,6 @@ function ChatRoom() {
       console.log(userProfile);
 
       getRoomInfo(roomUid);
-      // getChatsFromDb();
       registerOnSnapshot();
     }, []);
 
@@ -54,22 +54,21 @@ function ChatRoom() {
       cp[idx] = modifiedChat;
       setChats(cp);
     }, [modifiedChat]);
-    
-    // const getChatsFromDb = async () => {
-    //   const snapshot = await db.collection('chatrooms').doc(roomUid)
-    //     .collection('chats').orderBy('createdAt').get();
-      
-    //   const chats = [];
-    //   snapshot.forEach((doc) => {
-    //     chats.push({
-    //       id: doc.id,
-    //       ...doc.data()
-    //     });
-    //   });
-    //   console.log(chats);
-    //   setChats(chats);
-    // }
 
+    useEffect(() => {
+      if(removedChat === null)
+        return;
+      const cp = chats.map((v)=> {
+        if(v.id == removedChat.id) {
+          v.isRemoved = true;
+          v.content = "[삭제된 메시지 입니다.]";
+        }
+        return v;
+      });
+      setChats(cp);
+    }, [removedChat]);
+
+    
     const registerOnSnapshot = () => {
       // for chat
       db.collection('chatrooms').doc(roomUid)
@@ -84,13 +83,19 @@ function ChatRoom() {
 
               if(chats.map((v) => v.id === newEntry.id).length === 0)
                 setNewChat(newEntry);
-            }
-            else if(change.type === 'modified') {
+            } else if(change.type === 'modified') {
               const newEntry = {
                 id: change.doc.id,
                 ...change.doc.data()
               }; 
               setModifiedChat(newEntry);
+            } else if(change.type === 'removed') {
+              console.log('removed!!!!');
+              const newEntry = {
+                id: change.doc.id,
+                ...change.doc.data()
+              }; 
+              setRemovedChat(newEntry);
             }
           });
         });
@@ -177,9 +182,8 @@ function ChatRoom() {
     const renderChatboxes = chats.map((chat) => (
       <Chatbox 
         key={chat.id}
-        content={chat.content}
+        chat={chat}
         isMine={chat.userUid === userProfile.uid}
-        author={chat.userName}
       />
     ));
 

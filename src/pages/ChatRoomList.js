@@ -8,7 +8,7 @@ import styled from 'styled-components';
 import { v4 as uuidv4 } from 'uuid';
 import CreateRoomForm from '../components/CreateRoomForm';
 
-const ChatList = () => {
+const ChatRoomList = () => {
   const dispatch = useDispatch();
   const history = useHistory();
   const userProfile = useSelector((state) => state.user.userProfile);
@@ -314,4 +314,4 @@ const Title = styled.div`
 `;
 
 
-export default ChatList;
+export default ChatRoomList;
