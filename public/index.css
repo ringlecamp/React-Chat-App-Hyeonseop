@@ -18,6 +18,11 @@ input:focus {
   height: 100%;
 }
 
+.list-group-item.active {
+  background-color: #ee2aa6;
+  border-color: #ee2aa6;
+}
+
 .btn-primary {
   background-color: #eb5fe4;
   border-color: #eb5fe4;

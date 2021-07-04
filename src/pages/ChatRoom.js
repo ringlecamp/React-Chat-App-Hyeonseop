@@ -1,33 +1,39 @@
 import React, {useState, useEffect} from 'react';
 import {useParams, useHistory} from 'react-router-dom';
-import {useSelector} from 'react-redux';
+import {useSelector, useDispatch} from 'react-redux';
 import {firebase, db, firebaseApp} from '../firebase';
 import InputText from '../components/InputText';
 import InputChat from '../components/InputChat';
 import Chatbox from '../components/Chatbox';
 import {setUserProfile} from '../reducers/user';
 import styled from 'styled-components';
+import ParticipantList from '../components/ParticipantList';
 
 function ChatRoom() {
     const history = useHistory();
+    const dispatch = useDispatch();
     const userProfile = useSelector((state) => state.user.userProfile);
 
     const { roomUid } = useParams();
     const [chats, setChats] = useState([]);
     const [chatContent, setChatContent] = useState('');
     const [roomInfo, setRoomInfo] = useState({});
+
     const [newChat, setNewChat] = useState(null);
     const [modifiedChat, setModifiedChat] = useState(null);
 
+    
+
     useEffect(() => {
-      if(!userProfile) {
-        history.push('/');
+      if(!userProfile || !userProfile.chatroomUids.includes(roomUid)) {
+        alert('권한이 없습니다.');
+        history.push('/chat/list');
       }
 
       console.log(userProfile);
 
       getRoomInfo(roomUid);
-      getChatsFromDb();
+      // getChatsFromDb();
       registerOnSnapshot();
     }, []);
 
@@ -49,24 +55,25 @@ function ChatRoom() {
       setChats(cp);
     }, [modifiedChat]);
     
-    const getChatsFromDb = async () => {
-      const snapshot = await db.collection('chatrooms').doc(roomUid)
-        .collection('chats').orderBy('created').get();
+    // const getChatsFromDb = async () => {
+    //   const snapshot = await db.collection('chatrooms').doc(roomUid)
+    //     .collection('chats').orderBy('createdAt').get();
       
-      const chats = [];
-      snapshot.forEach((doc) => {
-        chats.push({
-          id: doc.id,
-          ...doc.data()
-        });
-      });
-      console.log(chats);
-      setChats(chats);
-    }
+    //   const chats = [];
+    //   snapshot.forEach((doc) => {
+    //     chats.push({
+    //       id: doc.id,
+    //       ...doc.data()
+    //     });
+    //   });
+    //   console.log(chats);
+    //   setChats(chats);
+    // }
 
     const registerOnSnapshot = () => {
+      // for chat
       db.collection('chatrooms').doc(roomUid)
-        .collection('chats').orderBy('created')
+        .collection('chats').orderBy('createdAt')
         .onSnapshot((snapshot) => {
           snapshot.docChanges().forEach((change) => {
             if(change.type === 'added') {
@@ -74,9 +81,11 @@ function ChatRoom() {
                 id: change.doc.id,
                 ...change.doc.data()
               }
-              setNewChat(newEntry);
+
+              if(chats.map((v) => v.id === newEntry.id).length === 0)
+                setNewChat(newEntry);
             }
-            else if(change.type === 'modifyed') {
+            else if(change.type === 'modified') {
               const newEntry = {
                 id: change.doc.id,
                 ...change.doc.data()
@@ -87,24 +96,48 @@ function ChatRoom() {
         });
     }
 
-    const exitRoom = async (roomUid) => {
-
+    const exitChatRoom = async (roomUid) => {
       try{
         // chatroom의 participants collection에서 user 삭제
         await db.collection('chatrooms').doc(roomUid)
-                .collection('participants').doc(userProfile.uid);
-
-        // user의 chatroomUids에 해당 지금 roomUid 삭제
+                .collection('participants').doc(userProfile.uid).delete();
+        
+        // user의 chatroomUids에 지금 roomUid 삭제
         const ref = db.collection('users').doc(userProfile.uid);
           // 현재 chatroomUids 불러오기
-        const doc = await ref.get();
-        const updatedChatroomUids = doc.data().chatroomUids.filter((v) => v !== roomUid);
+        const userDoc = await ref.get();
+        const updatedChatroomUids = userDoc.data().chatroomUids.filter((v) => v !== roomUid);
         const payload = {
           chatroomUids: updatedChatroomUids
         };
           // update
         await ref.update(payload)
-        
+
+        // userProfile에서 roomUid 빼기  (Redux)
+        const cp = {...userProfile};
+        const chatroomUids = cp.chatroomUids.filter((uid) => uid !== roomUid);
+        cp.chatroomUids = chatroomUids;
+        dispatch(setUserProfile(cp));
+
+
+        // chatroom 가져오기
+        const roomDoc = await db.collection('chatrooms').doc(roomUid).get();
+        const chatroom = roomDoc.data();
+
+        // 만약 방에 나밖에 없으면 방 자체를 삭제
+        if(chatroom.curNum === 1) {
+          await db.collection('chatrooms').doc(roomUid).delete();
+          alert(`인원이 없어 채팅방이 자동으로 삭제되었습니다.`);
+          history.push('/chat/list');
+          return;
+        }
+
+        // chatroom의 curNum 필드 1 빼기
+        await db.collection('chatrooms').doc(roomUid).update({
+          ...chatroom,
+          curNum: chatroom.curNum - 1
+        });
+
         // '/chat/list'로 redirect
         alert(`채팅방을 나갔습니다.`);
         history.push('/chat/list');
@@ -117,7 +150,6 @@ function ChatRoom() {
     const getRoomInfo = async (roomUid) => {
       const doc = await db.collection('chatrooms').doc(roomUid).get();
       const roomInfo = doc.data();
-      console.log('roomInfo~~ : ', roomInfo);
       setRoomInfo({...roomInfo});
     }
 
@@ -127,7 +159,7 @@ function ChatRoom() {
       const payload = {
         userUid: userProfile.uid,
         userName: userProfile.name,
-        created: firebase.firestore.Timestamp.now(),
+        createdAt: firebase.firestore.Timestamp.now(),
         content: content
       };
       const ref = await db.collection('chatrooms').doc(roomUid)
@@ -140,7 +172,6 @@ function ChatRoom() {
       sendChat(chatContent); 
       setChatContent('');
       //이거 방식 바꾸기?
-      getChatsFromDb();
     }
 
     const renderChatboxes = chats.map((chat) => (
@@ -160,7 +191,7 @@ function ChatRoom() {
             <div className="btn btn-danger" onClick={()=>history.push('/chat/list')}>방 리스트</div>
           </ButtonContainer>
           <ButtonContainer>
-            <div className="btn btn-danger" onClick={()=>exitRoom(roomUid)}>나가기</div>
+            <div className="btn btn-danger" onClick={()=>exitChatRoom(roomUid)}>나가기</div>
           </ButtonContainer>
         </Top>
         
@@ -171,6 +202,10 @@ function ChatRoom() {
           value={chatContent}
           onChange={(e)=>setChatContent(e.target.value)}
           onSubmit={onSubmit}
+        />
+
+        <ParticipantList 
+          roomInfo={roomInfo} 
         />
       </Container>
     );
@@ -193,6 +228,7 @@ const Title = styled.div`
 `;
 
 const Container = styled.div`
+  position: relative;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;

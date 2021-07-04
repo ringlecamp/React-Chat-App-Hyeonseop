@@ -1,7 +1,7 @@
 import React, {useState, useEffect} from 'react';
 import {useHistory} from 'react-router-dom';
 import {firebase, db} from '../firebase';
-import {useDispatch, useSelector} from 'react-redux';
+import {useDispatch, useSelector, useStore} from 'react-redux';
 import { setUserProfile } from '../reducers/user';
 
 import styled from 'styled-components';
@@ -14,6 +14,11 @@ const ChatList = () => {
   const userProfile = useSelector((state) => state.user.userProfile);
   const [chatroomList, setChatroomList] = useState([]);
   const [isClicked, setIsClicked] = useState(false);
+
+  // for onSnapshot
+  const [addedRoom, setAddedRoom] = useState(null);
+  const [modifiedRoom, setModifiedRoom] = useState(null);
+  const [removedRoom, setRemovedRoom] = useState(null);
 
   // 방 만들기 input
   const [inputState, setInputState] = useState({
@@ -32,18 +37,67 @@ const ChatList = () => {
       history.push('/');
       return;
     }
-    getChatroomList();
+    // getChatroomList();
+    registerOnSnapshot();
   }, [])
 
   useEffect(() => {
-    console.log("inputState",inputState);
-  }, [inputState]);
+    if(addedRoom === null)
+      return;
+    
+    const newChatRoomList = 
+    setChatroomList([...chatroomList, addedRoom]);
+  }, [addedRoom]);
+
+  useEffect(() => {
+    if(modifiedRoom === null)
+      return;
+
+    console.log('modified', modifiedRoom);
+    const newChatroomList = chatroomList.map((v) => {
+      if(v.uid === modifiedRoom.uid)
+        return {...modifiedRoom};
+      return v;
+    });
+    setChatroomList(newChatroomList);
+  }, [modifiedRoom]);
+
+  useEffect(() => {
+    if(removedRoom === null)
+      return;
+    const newChatroomList = chatroomList.filter((v) => v.uid !== removedRoom.uid);
+    setChatroomList(newChatroomList);
+  }, [removedRoom]);
+
+  // useEffect(() => {
+  //   console.log("inputState",inputState);
+  // }, [inputState]);
+
+
+  const registerOnSnapshot = () => {
+    // for chatroom list
+    db.collection('chatrooms').orderBy('createdAt')
+      .onSnapshot((snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if(change.type === 'added') {
+            if(chatroomList.filter((v) => v.uid === change.doc.data().uid ).length === 0)
+              setAddedRoom(change.doc.data());
+          }
+          else if(change.type === 'modified') {
+            setModifiedRoom(change.doc.data());
+          }
+          else if('removed') {
+            setRemovedRoom(change.doc.data());
+          }
+        });
+      });
+  }
 
 
   /* functions interact with db */
 
   const getChatroomList = async () => {
-    const snapshot = await db.collection('chatrooms').orderBy('created').get();
+    const snapshot = await db.collection('chatrooms').orderBy('createdAt').get();
     const chatroomList = [];
     snapshot.forEach((doc) => {
       chatroomList.push(doc.data());
@@ -92,7 +146,8 @@ const ChatList = () => {
 
       // chatroom에 participant 추가
       await db.collection('chatrooms').doc(roomUid).collection('participants').doc(userProfile.uid).set({
-        uid: userProfile.uid
+        uid: userProfile.uid,
+        enteredAt: firebase.firestore.Timestamp.now()
       });
 
       // user에 chatroom 추가
@@ -111,7 +166,7 @@ const ChatList = () => {
 
       setChatroomList([...chatroomList, chatroom]);
 
-      // userProfile에 들어간 state 넣기 (Redux)
+      // userProfile에 들어간 roomUid 넣기 (Redux)
       const cp = {...userProfile};
       cp.chatroomUids.push(roomUid);
       dispatch(setUserProfile(cp));
@@ -133,10 +188,9 @@ const ChatList = () => {
         maxNum: inputState.maxNum,
         isPrivate: inputState.isPrivate,
         pw: inputState.pw,
-        created: firebase.firestore.Timestamp.now(),
+        createdAt: firebase.firestore.Timestamp.now(),
         uid: chatroomUid
       });
-      console.log('chatroom created!');
       enterChatroom(chatroomUid, false);
     } catch(e) {
       alert('Error to create chatroom');
@@ -153,6 +207,7 @@ const ChatList = () => {
       <div>({v.curNum} / {v.maxNum})</div>
       [입장하기]
       {v.isPrivate && <PrivateIcon><i className="fas fa-lock"></i></PrivateIcon>}
+      {userProfile.chatroomUids.includes(v.uid) && <EnteredIcon><i className="fas fa-check"></i></EnteredIcon>}
     </ChatroomButton>
   ))
 
@@ -193,7 +248,11 @@ const ChatList = () => {
 
 const PrivateIcon = styled.div`
   position: absolute;
-  // left: 90%;
+`;
+
+const EnteredIcon = styled.div`
+  position: absolute;
+  left: 90%;
 `;
 
 
@@ -250,6 +309,7 @@ const ChatroomButton = styled.div`
 
 const Title = styled.div`
   font-weight: bold;
+  padding: 0px 16px;
   font-size: 1.1rem;
 `;
 
