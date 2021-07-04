@@ -47,7 +47,8 @@ const ParticipantList = ({roomInfo}) => {
                 id: userDoc.id,
                 ...userDoc.data()
               }
-              setNewParticipant(newEntry);
+              if(participants.map((v)=>v.id === newEntry.id).length === 0)
+                setNewParticipant(newEntry);
             })
         }
         if(change.type === 'removed') {
