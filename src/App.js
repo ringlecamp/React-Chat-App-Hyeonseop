@@ -1,15 +1,13 @@
 import React, {useState, useEffect} from 'react';
 import Routes from './Routes';
 import styled from "styled-components";
-import {db, firebaseApp} from './firebase';
-import {useDispatch, useSelector} from 'react-redux';
-import {setUserProfile} from './reducers/user';
-import {useHistory} from 'react-router-dom';
+import Header from './components/Header';
 
 function App() {  
   return (
     <Container>
       <Wrapper>
+        <Header />
         <Routes />
       </Wrapper>
     </Container>
